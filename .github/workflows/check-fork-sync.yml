@@ -1,0 +1,41 @@
+name: Check Fork Synchronization
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  check-fork-sync:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.fork == true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check sync
+        id: check
+        run: |
+          git remote add upstream https://github.com/${{ github.repository }}.git
+          git fetch upstream ${{ github.event.pull_request.base.ref }} --quiet
+
+          MERGE_BASE=$(git merge-base HEAD upstream/${{ github.event.pull_request.base.ref }})
+          UPSTREAM_HEAD=$(git rev-parse upstream/${{ github.event.pull_request.base.ref }})
+
+          if [ "$MERGE_BASE" != "$UPSTREAM_HEAD" ]; then
+            echo "synced=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment if not synced
+        if: steps.check.outputs.synced == 'false'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: "⚠️ Синхронизируйте вилку с оригинальным репозиторием."
