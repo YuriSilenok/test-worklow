@@ -4,10 +4,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-permissions:
-  pull-requests: write
-  contents: read
-
 jobs:
   check-fork-sync:
     runs-on: ubuntu-latest
@@ -21,7 +17,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Check sync
-        id: check
         run: |
           git remote add upstream https://github.com/${{ github.repository }}.git
           git fetch upstream ${{ github.event.pull_request.base.ref }} --quiet
@@ -30,12 +25,12 @@ jobs:
           UPSTREAM_HEAD=$(git rev-parse upstream/${{ github.event.pull_request.base.ref }})
 
           if [ "$MERGE_BASE" != "$UPSTREAM_HEAD" ]; then
-            echo "synced=false" >> $GITHUB_OUTPUT
+            echo ${{ github.event.pull_request.number }} > pr_number.txt
           fi
 
-      - name: Comment if not synced
-        if: steps.check.outputs.synced == 'false'
-        uses: peter-evans/create-or-update-comment@v4
+      - name: Upload PR number
+        uses: actions/upload-artifact@v4
         with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body: "⚠️ Синхронизируйте вилку с оригинальным репозиторием."
+          name: pr-number
+          path: pr_number.txt
+          if-no-files-found: ignore
